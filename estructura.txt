@@ -1,0 +1,14 @@
+choferes_backend/
+├── app/
+│   ├── __init__.py           # Archivo vacío que convierte 'app' en un paquete de Python
+│   ├── main.py               # El punto de entrada principal de nuestra API
+│   ├── database.py           # Lógica de conexión a la base de datos
+│   ├── models.py             # Definición de las tablas de la base de datos (SQLAlchemy)
+│   ├── schemas.py            # Definición de la "forma" de los datos (Pydantic)
+│   ├── services.py           # Lógica de negocio (el "cerebro")
+│   ├── repositories.py       # Lógica de acceso a datos (habla con la BD)
+│   └── routers/
+│       ├── __init__.py       # Archivo vacío
+│       ├── auth.py           # Endpoints para login/logout
+│       └── fec.py            # Endpoints para todo lo relacionado al FEC
+└── venv/ 
