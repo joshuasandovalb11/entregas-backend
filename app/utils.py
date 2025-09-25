@@ -25,7 +25,7 @@ def parse_gps_location(gps_string: Optional[str]) -> Optional[Tuple[float, float
 def fec_model_to_schema(fec_model: models.FEC) -> schemas.FEC:
     """
     Convierte un modelo FEC de la base de datos a un schema compatible con React Native.
-    Maneja las diferencias de nomenclatura entre el modelo y lo que espera React Native.
+    Maneja las diferencias de nomenclatura y parsea el JSON de la ruta optimizada.
     """
     date_str = fec_model.fec_date.isoformat() if fec_model.fec_date else ""
     
@@ -33,16 +33,28 @@ def fec_model_to_schema(fec_model: models.FEC) -> schemas.FEC:
     if fec_model.deliveries:
         for delivery in fec_model.deliveries:
             deliveries.append(delivery_model_to_schema(delivery))
-    
+            
+    optimized_order_id_list = []
+    if fec_model.optimized_order_list_json:
+        try:
+            parsed_list = json.loads(fec_model.optimized_order_list_json)
+            if isinstance(parsed_list, list) and all(isinstance(i, int) for i in parsed_list):
+                optimized_order_id_list = parsed_list
+        except (json.JSONDecodeError, TypeError):
+            print(f"ADVERTENCIA: No se pudo parsear optimized_order_list_json: {fec_model.optimized_order_list_json}")
+            optimized_order_id_list = []
+
+
     return schemas.FEC(
         fec_id=fec_model.fec_id,
         fec_number=fec_model.fec_number,
         driver_id=fec_model.driver_id,
-        fec_date=date_str,
+        fec_date=fec_model.fec_date,
         deliveries=deliveries,
         status=fec_model.status,
         optimized_order_list_json=fec_model.optimized_order_list_json,
-        suggested_journey_polyline=fec_model.suggested_journey_polyline
+        suggested_journey_polyline=fec_model.suggested_journey_polyline,
+        optimizedOrderId_list=optimized_order_id_list 
     )
 
 def delivery_model_to_schema(delivery_model: models.Delivery) -> schemas.Delivery:
@@ -74,11 +86,11 @@ def delivery_model_to_schema(delivery_model: models.Delivery) -> schemas.Deliver
         delivery_time=delivery_model.delivery_time.isoformat() if delivery_model.delivery_time else None,
         actual_duration=delivery_model.actual_duration,
         estimated_duration=delivery_model.estimated_duration,
-        start_latitud=delivery_model.start_latitud,
-        start_longitud=delivery_model.start_longitud,
-        end_latitud=delivery_model.end_latitud,
-        end_longitud=delivery_model.end_longitud,
-        accepted_next_at=delivery_model.accepted_next_at.isoformat() if delivery_model.accepted_next_at else None,
+        estimated_distance=delivery_model.estimated_distance,
+        start_latitude=delivery_model.start_latitude,
+        start_longitude=delivery_model.start_longitude,
+        end_latitude=delivery_model.end_latitude,
+        end_longitude=delivery_model.end_longitude,
         invoice_id=delivery_model.invoice_id,
         client=client_schema,
         status=delivery_model.status,

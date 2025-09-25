@@ -7,9 +7,9 @@ from typing import List
 from .. import schemas, models, security, database, services
 
 router = APIRouter(
-    prefix="/deliveries", # Agruparemos todo bajo /deliveries
+    prefix="/deliveries",
     tags=["Deliveries & Events"],
-    dependencies=[Depends(security.get_current_driver)] # ¡Todos estos endpoints están protegidos!
+    dependencies=[Depends(security.get_current_driver)]
 )
 
 @router.post("/events/log", status_code=status.HTTP_202_ACCEPTED)
@@ -28,6 +28,25 @@ def log_tracking_events(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Ocurrió un error al procesar los eventos."
+        )
+
+@router.post("/events/log/batch", status_code=status.HTTP_202_ACCEPTED)
+def log_tracking_points_batch(
+    points: List[schemas.TrackingPoint],
+    db: Session = Depends(database.get_db),
+    current_driver: models.Driver = Depends(security.get_current_driver)
+):
+    """
+    Endpoint optimizado para recibir un lote (batch) de puntos de seguimiento (GPS).
+    Reutiliza el mismo servicio que el endpoint individual.
+    """
+    try:
+        services.log_tracking_events_for_driver(db, events=points, driver_id=current_driver.driver_id)
+        return {"status": "ok", "message": "Lote de puntos de seguimiento recibido."}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Ocurrió un error al procesar el lote de puntos de seguimiento."
         )
 
 @router.post("/{delivery_id}/incident", response_model=schemas.Delivery)

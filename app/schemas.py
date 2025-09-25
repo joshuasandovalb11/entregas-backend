@@ -1,6 +1,6 @@
 # app/schemas.py
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
 
@@ -28,7 +28,7 @@ class Client(BaseModel):
     gps_location: str
     salesperson: Optional[Salesperson] = None
 
-# Estructura DELIVERY
+# Estructura DELIVERY - CORREGIDA
 class Delivery(BaseModel):
     delivery_id: int
     driver_id: int
@@ -37,11 +37,11 @@ class Delivery(BaseModel):
     delivery_time: Optional[str] = None
     actual_duration: Optional[str] = None
     estimated_duration: Optional[str] = None
-    start_latitud: float
-    start_longitud: float
-    end_latitud: Optional[float] = None
-    end_longitud: Optional[float] = None
-    accepted_next_at: Optional[str] = None
+    estimated_distance: Optional[str] = None
+    start_latitude: float
+    start_longitude: float
+    end_latitude: Optional[float] = None
+    end_longitude: Optional[float] = None
     invoice_id: Optional[str] = None
     client: Optional[Client] = None
     status: Optional[str] = None # "pending", "in_progress", etc.
@@ -63,16 +63,22 @@ class FEC(BaseModel):
     status: str
     optimized_order_list_json: Optional[str] = None
     suggested_journey_polyline: Optional[str] = None
+    optimized_order_id_list: Optional[List[int]] = Field(default=None, alias="optimizedOrderId_list")
+    suggested_journey_polyline: Optional[str] = Field(default=None, alias="suggestedJourneyPolyline")
 
     class Config:
         from_attributes = True
+        populate_by_name = True
 
+# Estructura TRACKINGPOINT
 class TrackingPoint(BaseModel):
     latitude: float
     longitude: float
     timestamp: datetime
     eventType: str
     deliveryId: Optional[int] = None
+    estimatedDuration: Optional[str] = None
+    estimatedDistance: Optional[str] = None
 
 # Estructura LOCATION
 class Location(BaseModel):

@@ -2,7 +2,7 @@
 
 from sqlmodel import SQLModel, Field, Relationship
 from typing import Optional, List
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 
 class Driver(SQLModel, table=True):
     __tablename__ = "drivers"
@@ -69,21 +69,18 @@ class Delivery(SQLModel, table=True):
     priority: Optional[int] = None
 
     # --- Tiempos y Duraciones ---
-    # Guardamos los tiempos como DateTime para poder hacer cálculos precisos
-    start_time: datetime = Field(default_factory=datetime.utcnow)
-    delivery_time: datetime = None
-    accepted_next_at: datetime = None
+    start_time: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    delivery_time: Optional[datetime] = Field(default=None)
     
-    # Estos son campos que se podrían calcular, pero los almacenaremos
-    # por flexibilidad y rendimiento.
     actual_duration: Optional[str] = Field(default=None, max_length=50)
     estimated_duration: Optional[str] = Field(default=None, max_length=50)
+    estimated_distance: Optional[str] = Field(default=None, max_length=50)
 
-    # --- Coordenadas y Distancia ---
-    start_latitud: float
-    start_longitud: float
-    end_latitud: Optional[float] = None
-    end_longitud: Optional[float] = None
+    # --- Coordenadas y Distancia --- CORREGIDO: nombres consistentes
+    start_latitude: float
+    start_longitude: float
+    end_latitude: Optional[float] = None
+    end_longitude: Optional[float] = None
     distance: Optional[float] = None
 
     # --- Campos de Incidencia ---
@@ -102,7 +99,7 @@ class TrackingPoint(SQLModel, table=True):
     point_id: Optional[int] = Field(default=None, primary_key=True)
     latitude: float
     longitude: float
-    timestamp: datetime = Field(default_factory=datetime.utcnow, index=True)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), index=True)
     event_type: Optional[str] = Field(default=None, max_length=50)
 
     driver_id: Optional[int] = Field(default=None, foreign_key="drivers.driver_id")

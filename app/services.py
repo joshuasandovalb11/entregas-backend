@@ -22,6 +22,14 @@ def log_tracking_events_for_driver(db: Session, events: List[schemas.TrackingPoi
 
     for event in events:
         try:
+            # Logica anti-duplicados
+            if event.deliveryId and event.eventType in ["start_delivery", "end_delivery"]:
+                
+                if repositories.check_if_event_exists(db, delivery_id=event.deliveryId, event_type=event.eventType):
+                    
+                    logger.warning(f"Evento duplicado ignorado: {event.eventType} para delivery_id {event.deliveryId}")
+                    continue
+            
             repositories.create_tracking_point(db, point=event, driver_id=driver_id)
 
             if event.deliveryId:
@@ -33,8 +41,15 @@ def log_tracking_events_for_driver(db: Session, events: List[schemas.TrackingPoi
                     location_data = schemas.Location(latitude=event.latitude, longitude=event.longitude)
 
                     if event.eventType == "start_delivery":
-                        repositories.update_delivery_status(db, delivery=delivery, new_status="in_progress", timestamp=event.timestamp, location=location_data)
-
+                        repositories.update_delivery_status(
+                            db,
+                            delivery=delivery,
+                            new_status="in_progress",
+                            timestamp=event.timestamp,
+                            location=location_data,
+                            estimated_duration=event.estimatedDuration,
+                            estimated_distance=event.estimatedDistance,
+                        )
                     elif event.eventType == "end_delivery":
                         repositories.update_delivery_status(db, delivery=delivery, new_status="completed", timestamp=event.timestamp, location=location_data)
                         
@@ -89,6 +104,20 @@ def create_incident_report(db: Session, delivery_id: int, incident_data: schemas
             detail="La entrega no fue encontrada o no pertenece a este conductor."
         )
     
+    if delivery.status in ["completed", "cancelled"]:
+        logger.warning(f"Se intentó reportar una incidencia sobre una entrega ya finalizada (ID: {delivery_id}, Estado: {delivery.status})")
+        return delivery
+    
+    end_delivery_event = schemas.TrackingPoint(
+        latitude=incident_data.latitude,
+        longitude=incident_data.longitude,
+        timestamp=datetime.now(timezone.utc),
+        eventType="end_delivery",
+        deliveryId=delivery_id
+    )
+    repositories.create_tracking_point(db, point=end_delivery_event, driver_id=driver_id)
+    logger.info(f"Evento 'end_delivery' creado para la incidencia de la entrega ID: {delivery_id}")
+
     try:
         current_timestamp = datetime.now(timezone.utc)
         location_data = None
@@ -114,39 +143,49 @@ def get_fec_details_for_driver(db: Session, fec_number: int, driver_id: int):
     """
     Orquesta la obtención y enriquecimiento de los detalles de un FEC para un conductor.
     """
-    fec = repositories.get_fec_by_number(db, fec_number=fec_number, driver_id=driver_id)
+    fec = repositories.get_fec_by_number_and_driver(db, fec_number=fec_number, driver_id=driver_id)
     
     if not fec:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"El FEC con número '{fec_number}' no fue encontrado para este conductor."
         )
-        
-    needs_commit = False
-    for delivery in fec.deliveries:
-        if (delivery.start_latitud is None or delivery.start_latitud == 0) and delivery.client and delivery.client.gps_location:
-            
-            coords = utils.parse_gps_location(delivery.client.gps_location)
-            
-            if coords:
-                delivery.start_latitud, delivery.start_longitud = coords
-                db.add(delivery)
-                needs_commit = True
-                logger.info(f"Coordenadas actualizadas para la entrega ID: {delivery.delivery_id}")
 
-    if needs_commit:
+    if fec.status == "pending":
+        repositories.update_fec_status(db, fec, "in_progress")
         db.commit()
         db.refresh(fec)
+        logger.info(f"El FEC ID: {fec.fec_id} ha sido actualizado a 'in_progress'.")
+    
+    if fec.status == "completed":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"El FEC {fec_number} ya fue completado y no puede ser iniciado de nuevo."
+        )
+
+    if repositories.are_all_deliveries_finalized(db, fec.fec_id):
+        repositories.update_fec_status(db, fec, "completed")
+        db.commit()
+        db.refresh(fec)
+        logger.info(f"El FEC ID: {fec.fec_id} ha sido actualizado a 'completed'.")
+        
+    # needs_commit = False
+    # for delivery in fec.deliveries:
+    #     if (delivery.start_latitud is None or delivery.start_latitud == 0) and delivery.client and delivery.client.gps_location:
+            
+    #         coords = utils.parse_gps_location(delivery.client.gps_location)
+            
+    #         if coords:
+    #             delivery.start_latitud, delivery.start_longitud = coords
+    #             db.add(delivery)
+    #             needs_commit = True
+    #             logger.info(f"Coordenadas actualizadas para la entrega ID: {delivery.delivery_id}")
+
+    # if needs_commit:
+    #     db.commit()
+    #     db.refresh(fec)
         
     return utils.fec_model_to_schema(fec)
-        
-    # 2. (Futuro) Aquí podrías añadir más lógica de negocio.
-    # Por ejemplo: calcular la distancia de cada entrega si no está guardada,
-    # verificar el estado de las entregas, etc.
-    # for delivery in fec.deliveries:
-    #     delivery.distance = calcular_distancia(...)
-        
-    # 3. Convertir el modelo a schema compatible con React Native
 
 def update_fec_route_details(db: Session, fec_id: int, route_data: schemas.OptimizedRouteData, driver_id: int):
     """Servicio para actualizar la ruta optimizada de un FEC."""
