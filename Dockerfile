@@ -1,4 +1,4 @@
-# Dockerfile (Versión Final y Simplificada)
+# Dockerfile (Versión Final Definitiva)
 
 # 1. Usar una imagen oficial de Python
 FROM python:3.11.9-slim
@@ -6,7 +6,7 @@ FROM python:3.11.9-slim
 # 2. Establecer el directorio de trabajo
 WORKDIR /app
 
-# 3. Instalar los drivers de Microsoft ODBC
+# 3. Instalar los drivers de Microsoft ODBC (Esto ya funciona perfecto)
 RUN apt-get update && apt-get install -y curl gnupg \
     && curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add - \
     && curl https://packages.microsoft.com/config/debian/11/prod.list > /etc/apt/sources.list.d/mssql-release.list \
@@ -19,11 +19,11 @@ RUN apt-get update && apt-get install -y curl gnupg \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 5. Copiar SOLO el código de la aplicación (la carpeta 'app')
-# a la raíz del directorio de trabajo.
-COPY ./app .
+# 5. Copiar TODO el proyecto. Esto creará la estructura /app/app
+COPY . .
 
 # 6. Exponer el puerto y definir el comando de inicio
-# Como ahora main.py está en /app/main.py, el comando es más simple.
+# Este es el cambio clave: le decimos a gunicorn que busque
+# el objeto 'app' dentro del paquete 'app.main'.
 EXPOSE 8000
-CMD ["gunicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["gunicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
